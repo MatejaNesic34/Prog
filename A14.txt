@@ -1,0 +1,221 @@
+FORMA 1
+==================================================================================================================================================
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Data.SqlClient;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+ 
+namespace A14_1
+{
+    public partial class Form1 : Form
+    {
+        string connstr = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=|DataDirectory|\A14.mdf;Integrated Security=True";
+        public Form1()
+        {
+            InitializeComponent();
+        }
+ 
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            OsveziGrid();
+        }
+        private void OsveziGrid()
+        {
+            SqlConnection conn = new SqlConnection(connstr);
+            SqlCommand cmd = new SqlCommand();
+            cmd.Connection = conn;
+            cmd.CommandText = "SELECT " +
+                "l.LekID AS 'Šifra leka', " +
+                "p.ProizvodjacID AS 'Šifra proizvođača', " +
+                "l.NazivLeka AS 'Naziv leka', " +
+                "l.NezasticenoIme AS 'Nezaštićeno ime', " +
+                "p.Naziv AS 'Proizvođač' " +
+                "FROM Proizvodjac AS p, Lek AS l " +
+                "WHERE l.ProizvodjacID=p.ProizvodjacID " +
+                "ORDER BY l.NazivLeka";
+            SqlDataAdapter da = new SqlDataAdapter(cmd);
+            DataTable dt = new DataTable();
+            try
+            {
+                da.Fill(dt);
+                dataGridView1.DataSource = dt;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Greska: " + ex.Message);
+            }
+            finally
+            {
+                da.Dispose();
+                cmd.Dispose();
+            }
+        }
+ 
+        private void dataGridView1_SelectionChanged(object sender, EventArgs e)
+        {
+            if(dataGridView1.SelectedRows.Count > 0)
+            {
+                textBoxNazivLeka.Text =
+                    dataGridView1.SelectedRows[0].
+                    Cells[2].Value.ToString();
+                textBoxProizvodjac.Text =
+                    dataGridView1.SelectedRows[0].
+                    Cells[4].Value.ToString();
+            }
+            else
+            {
+                textBoxNazivLeka.Text = "";
+                textBoxProizvodjac.Text = "";
+            }
+        }
+ 
+        private void toolStripButtonBrisi_Click(object sender, EventArgs e)
+        {
+            if (dataGridView1.SelectedRows.Count == 0) // nema selekcije
+            {
+                MessageBox.Show("Nema selekcije!");
+                return;
+            }
+            if (MessageBox.Show("Da li ste sigurni",
+                "Brisanje leka iz evidencije",
+                MessageBoxButtons.YesNo) == DialogResult.Yes)
+            {
+                SqlConnection conn = new SqlConnection(connstr);
+                SqlCommand komanda = new SqlCommand();
+                komanda.CommandText =
+                    "DELETE FROM Lek " +
+                    "WHERE LekID=@paramID";
+                int ID = int.Parse(dataGridView1.SelectedRows[0].Cells[0].Value.ToString());
+                komanda.Parameters.AddWithValue("@paramID", ID);
+                komanda.Connection = conn;
+                try
+                {
+                    conn.Open();
+                    komanda.ExecuteNonQuery();
+                    komanda.Dispose();
+                    OsveziGrid();
+                    textBoxNazivLeka.Text = "";
+                    textBoxProizvodjac.Text = "";
+ 
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(ex.Message);
+                }
+                finally
+                {
+                    conn.Close();
+                    MessageBox.Show("Uspesno ste izbrisali lek");
+                }
+            }
+        }
+ 
+        private void toolStripButtonAnaliza_Click(object sender, EventArgs e)
+        {
+            FormStatistika fs= new FormStatistika();
+            fs.ShowDialog();
+        }
+    }
+}
+============================================================================================================================================
+FORMA 2
+=============================================================================================================================================
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Data.SqlClient;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+ 
+namespace A14_1
+{
+    public partial class FormStatistika : Form
+    {
+        SqlConnection konekcija = new SqlConnection(@"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=|DataDirectory|\A14.mdf;Integrated Security=True");
+        public FormStatistika()
+        {
+            InitializeComponent();
+        }
+ 
+        private void FormStatistika_Load(object sender, EventArgs e)
+        {
+            PopuniListCheck();
+        }
+        private void PopuniListCheck()
+        {
+            SqlCommand komanda = new SqlCommand();
+            komanda.Connection = konekcija;
+            komanda.CommandText = "SELECT Naziv, ProizvodjacID FROM Proizvodjac";
+            SqlDataAdapter adapter = new SqlDataAdapter(komanda);
+            DataTable dt = new DataTable();
+            try
+            {
+                adapter.Fill(dt);
+                checkedListBox1.DataSource = dt;
+                checkedListBox1.DisplayMember = "Naziv";
+                checkedListBox1.ValueMember = "ProizvodjacID";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+        }
+ 
+        private void buttonPrikazi_Click(object sender, EventArgs e)
+        {
+            DataTable dt = new DataTable();
+            foreach (DataRowView item in checkedListBox1.CheckedItems)
+            {
+                SqlCommand komanda = new SqlCommand();
+                komanda.Connection = konekcija;
+                komanda.CommandText = "SELECT p.Naziv,COUNT(l.LekID) AS BrojLekova " +
+                    "FROM Lek AS l,Proizvodjac AS p " +
+                    "WHERE l.ProizvodjacID=p.ProizvodjacID " +
+                    "AND p.ProizvodjacID=@param1 " +
+                    "GROUP BY p.Naziv  ";
+                komanda.Parameters.AddWithValue("@param1", item["ProizvodjacID"]);
+                SqlDataAdapter adapter = new SqlDataAdapter(komanda);
+                adapter.Fill(dt);
+            }
+            chart1.DataSource = dt;
+            chart1.Series[0].XValueMember = "Naziv";
+            chart1.Series[0].YValueMembers = "BrojLekova";
+            chart1.Series[0].IsValueShownAsLabel = true;
+        }
+    }
+}
+==========================================================================================================================================
+PROSIRENJE
+==========================================================================================================================================
+CREATE TABLE Apoteka (
+	ApotekaID INT NOT NULL,
+	Ime VARCHAR(20) NOT NULL,
+	Telefon VARCHAR(20) NOT NULL,
+	Adresa VARCHAR(50) NOT NULL,
+	Grad VARCHAR(20) NOT NULL,
+	Drzava VARCHAR(20) NOT NULL,
+	PRIMARY KEY(ApotekaID)
+);
+ 
+CREATE TABLE Narudzbina (
+	NarudzbinaID INT NOT NULL,
+	ApotekaID INT NOT NULL,
+	LekID INT NOT NULL,
+	Kolicina INT NOT NULL,
+	PRIMARY KEY(NarudzbinaID, ApotekaID, LekID),
+	FOREIGN KEY(ApotekaID) REFERENCES Apoteka(ApotekaID),
+	FOREIGN KEY(LekID) REFERENCES Lek(LekID)
+);
+ 
+ALTER TABLE Pakovanje
+ADD DatumUpotrebe DATE;
