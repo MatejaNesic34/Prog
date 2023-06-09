@@ -1,0 +1,239 @@
+FORMA 1
+=======================================================================================================================
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Data.SqlClient;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+ 
+namespace A2skolskabiblioteka
+{
+    public partial class Form1 : Form
+    {
+        SqlConnection konekcija = new SqlConnection(@"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=|DataDirectory|\A2.mdf;Integrated Security=True");
+        public Form1()
+        {
+            InitializeComponent();
+        }
+        int ID = 0;
+        private void PrikaziULV()
+        {
+            listView1.Items.Clear();
+            string sqlUpit = "SELECT * FROM Autor";
+            SqlCommand komanda = new SqlCommand(sqlUpit, konekcija);
+            SqlDataAdapter da = new SqlDataAdapter(komanda);
+            try
+            {
+                DataTable dt = new DataTable();
+                da.Fill(dt);
+                foreach (DataRow row in dt.Rows)
+                {
+                    ListViewItem listItem = new ListViewItem(row["AutorID"].ToString());
+                    listItem.SubItems.Add(row["Ime"].ToString());
+                    listItem.SubItems.Add(row["Prezime"].ToString());
+                    var dat = DateTime.Parse(row["DatumRodjenja"].ToString());
+                    listItem.SubItems.Add(dat.ToString("dd/MM/yyyy"));
+                    listView1.Items.Add(listItem);
+                }
+            }
+            catch(Exception)
+            {
+                MessageBox.Show("Doslo je do greske !");
+            }
+            finally
+            {
+                da.Dispose();
+                komanda.Dispose();
+            }
+        }
+ 
+        private void ClearData()
+        {
+            textBoxSifra.Text = "";
+            textBoxIme.Text = "";
+            textBoxPrezime.Text = "";
+            textBoxRodjen.Text = "";
+        }
+ 
+        private void toolStripButtonAnaliza_Click(object sender, EventArgs e)
+        {
+            Statistika frm = new Statistika();
+            frm.Show();
+        }
+ 
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            PrikaziULV();
+        }
+ 
+ 
+        private void listView1_MouseClick(object sender, MouseEventArgs e)
+        {
+            ID = Convert.ToInt32(listView1.SelectedItems[0].SubItems[0].Text);
+            textBoxSifra.Text = listView1.SelectedItems[0].SubItems[0].Text;
+            textBoxIme.Text = listView1.SelectedItems[0].SubItems[1].Text;
+            textBoxPrezime.Text = listView1.SelectedItems[0].SubItems[2].Text;
+            textBoxRodjen.Text = listView1.SelectedItems[0].SubItems[3].Text;
+        }
+ 
+        private void toolStripButtonBrisanje_Click(object sender, EventArgs e)
+        {
+            if(textBoxSifra.Text != "")
+            {
+                try
+                {
+                    konekcija.Open();
+                    string sqlUpit = "Delete Autor WHERE AutorID = @Id";
+                    SqlCommand komanda = new SqlCommand(sqlUpit, konekcija);
+                    komanda.Parameters.AddWithValue("@Id", textBoxSifra.Text);
+                    komanda.ExecuteNonQuery();
+                    konekcija.Close();
+                    komanda.Dispose();
+                    PrikaziULV();
+                    ClearData();
+                }
+                catch(Exception ex)
+                {
+                    MessageBox.Show("Doslo je do greske ! " + ex.Message);
+                }
+            }
+            else
+            {
+                MessageBox.Show("Izaberite red koji brišete");
+            }
+        }
+ 
+        private void toolStripButtonIzlaz_Click(object sender, EventArgs e)
+        {
+           Application.Exit();
+        }
+ 
+        private void toolStripButtonOAplikaciji_Click(object sender, EventArgs e)
+        {
+            Uputstvo frm = new Uputstvo();
+            frm.Show();
+        }
+    }
+}
+=======================================================================================================================================================
+FORMA 2
+======================================================================================================================================================
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Data.SqlClient;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Windows.Forms.DataVisualization.Charting;
+ 
+namespace A2skolskabiblioteka
+{
+    public partial class Statistika : Form
+    {
+        SqlConnection konekcija = new SqlConnection(@"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=|DataDirectory|\A2.mdf;Integrated Security=True");
+ 
+        public Statistika()
+        {
+            InitializeComponent();
+        }
+ 
+        private void Statistika_Load(object sender, EventArgs e)
+        {
+            PopuniCmb();
+        }
+ 
+        private void PopuniCmb()
+        {
+            String strSQL = "Select DISTINCT AutorID, (Ime + ' ' + Prezime) AS ImePrezime FROM Autor";
+            SqlCommand komanda = new SqlCommand(strSQL, konekcija);
+            SqlDataAdapter da = new SqlDataAdapter(komanda);
+            DataSet ds = new DataSet();
+            try
+            {
+                da.Fill(ds);
+                comboBoxAutor.DataSource = ds.Tables[0];
+                comboBoxAutor.DisplayMember = "ImePrezime";
+                comboBoxAutor.ValueMember = "AutorID";
+                comboBoxAutor.SelectedItem = null;
+                comboBoxAutor.DropDownStyle = ComboBoxStyle.DropDownList;
+ 
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("Doslo je do greske !");
+            }
+            finally
+            {
+                da.Dispose();
+                komanda.Dispose();
+            }  
+        }
+ 
+        private void btnPrikazi_Click(object sender, EventArgs e)
+        {
+            string sql = "SELECT YEAR(DatumUzimanja) as Godina, " +
+                "COUNT(DatumUzimanja) as Broj " +
+                "FROM Na_Citanju, Knjiga, Napisali " +
+                "WHERE Na_Citanju.KnjigaID = Knjiga.KnjigaID " +
+                "AND Knjiga.KnjigaID = Napisali.KnjigaID " +
+                "AND Napisali.AutorID = @param1 " +
+                "AND Year(DatumUzimanja) BETWEEN @param3 AND @param2  " +
+                "GROUP BY YEAR(DatumUzimanja)";
+            SqlCommand komanda = new SqlCommand(sql, konekcija);
+            komanda.Parameters.AddWithValue("@param1", comboBoxAutor.SelectedValue);
+            komanda.Parameters.AddWithValue("@param2", DateTime.Now.Year);
+            komanda.Parameters.AddWithValue("@param3", DateTime.Now.AddYears((int)-numericUpDown1.Value).Year);
+            SqlDataAdapter da = new SqlDataAdapter(komanda);
+            try
+            {
+                DataTable dt = new DataTable();
+                da.Fill(dt);
+                chart1.DataSource = dt;
+                chart1.Series[0].XValueMember = "Godina";
+                chart1.Series[0].YValueMembers = "Broj";
+                chart1.Series[0].IsValueShownAsLabel = false;
+                chart1.Series[0].ChartType = SeriesChartType.Line;
+                chart1.Series[0].Color = Color.Red;
+                dataGridView1.DataSource = dt;
+ 
+            }
+            catch(Exception)
+            {
+                MessageBox.Show("Doslo je do greske !");
+            }
+            finally
+            {
+                da.Dispose();
+                komanda.Dispose();
+            }
+        }
+ 
+        private void btnIzadji_Click(object sender, EventArgs e)
+        {
+            this.Close();
+        }
+    }
+}
+======================================================================================================================================
+PROSIRENJE
+====================================================================================================================================
+CREATE TABLE Primerak(
+	PrimerakID INT NOT NULL PRIMARY KEY,
+	KnjigaID INT NOT NULL,
+	Povez VARCHAR(50) NOT NULL
+	CONSTRAINT FK_Primerak_Knjiga FOREIGN KEY (KnjigaID) REFERENCES Knjiga(KnjigaID),
+);
+ 
+ALTER TABLE Citalac
+ADD
+DatumClanarine DATE,
+CONSTRAINT CHK_DatumClanarine CHECK(DatumClanarine <= GETDATE())
